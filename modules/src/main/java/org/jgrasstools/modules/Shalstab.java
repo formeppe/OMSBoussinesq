@@ -152,6 +152,11 @@ public class Shalstab extends JGTModel {
     @UI(JGTConstants.FILEOUT_UI_HINT)
     @In
     public String outShalstab = null;
+    
+    @Description(OMSSHALSTAB_outShalstab_DESCRIPTION)
+    @UI(JGTConstants.FILEOUT_UI_HINT)
+    @In
+    public String outShalstab2Classes = null;
 
     @Execute
     public void process() throws Exception {
@@ -177,5 +182,6 @@ public class Shalstab extends JGTModel {
         shalstab.process();
         dumpRaster(shalstab.outQcrit, outQcrit);
         dumpRaster(shalstab.outShalstab, outShalstab);
+        dumpRaster(shalstab.outShalstab2Classes, outShalstab2Classes);
     }
 }

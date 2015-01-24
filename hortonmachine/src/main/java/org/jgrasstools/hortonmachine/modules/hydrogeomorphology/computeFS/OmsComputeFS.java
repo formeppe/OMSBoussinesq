@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.jgrasstools.hortonmachine.modules.hydrogeomorphology.shalstab;
+package org.jgrasstools.hortonmachine.modules.hydrogeomorphology.computeFS;
 
 import static java.lang.Math.atan;
 import static java.lang.Math.pow;
@@ -80,7 +80,7 @@ import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
 @Name(OMSSHALSTAB_NAME)
 @Status(OMSSHALSTAB_STATUS)
 @License(OMSSHALSTAB_LICENSE)
-public class OmsShalstab extends JGTModel {
+public class OmsComputeFS extends JGTModel {
 
 	@Description(OMSSHALSTAB_inSlope_DESCRIPTION)
 	@In
@@ -99,6 +99,11 @@ public class OmsShalstab extends JGTModel {
 	@Unit("m^2/day")
 	@In
 	public double pTrasmissivity = -1.0;
+
+	@Description(OMSSHALSTAB_pTrasmissivity_DESCRIPTION)
+	@Unit("m^2/day")
+	@In
+	public double pThresholdFS = -1.0;
 
 	@Description(OMSSHALSTAB_inTgphi_DESCRIPTION)
 	@In
@@ -137,6 +142,12 @@ public class OmsShalstab extends JGTModel {
 	@Unit("mm/day")
 	@In
 	public double pQ = -1.0;
+	
+	@Description(OMSSHALSTAB_pQ_DESCRIPTION)
+	@Unit("mm/day")
+	@In
+	boolean computeTransmissivity=false;
+	
 
 	@Description(OMSSHALSTAB_inRho_DESCRIPTION)
 	@In
@@ -157,11 +168,10 @@ public class OmsShalstab extends JGTModel {
 	@Description(OMSSHALSTAB_outShalstab_DESCRIPTION)
 	@Out
 	public GridCoverage2D outShalstab = null;
-	
+
 	@Description(OMSSHALSTAB_outShalstab_DESCRIPTION)
 	@Out
 	public GridCoverage2D outShalstab2Classes = null;
-	
 
 	public final double EPS = 0.01;
 
@@ -252,8 +262,7 @@ public class OmsShalstab extends JGTModel {
 
 		WritableRaster qcritWR = CoverageUtilities.createDoubleWritableRaster(
 				cols, rows, null, null, null);
-		WritableRandomIter qcritIter = RandomIterFactory.createWritable(
-				qcritWR, null);
+
 		WritableRaster classiWR = CoverageUtilities.createDoubleWritableRaster(
 				cols, rows, null, null, null);
 		WritableRandomIter classiIter = RandomIterFactory.createWritable(
@@ -264,77 +273,6 @@ public class OmsShalstab extends JGTModel {
 		WritableRandomIter classi2Iter = RandomIterFactory.createWritable(
 				classi2WR, null);
 
-		pm.beginTask("Creating qcrit map...", rows);
-		for (int j = 0; j < rows; j++) {
-			pm.worked(1);
-			for (int i = 0; i < cols; i++) {
-				double slopeValue = slopeRI.getSampleDouble(i, j, 0);
-				double tanPhiValue = frictionRI.getSampleDouble(i, j, 0);
-				double cohValue = cohesionRI.getSampleDouble(i, j, 0);
-				double rhoValue = densityRI.getSampleDouble(i, j, 0);
-				double hsValue = hsIter.getSampleDouble(i, j, 0);
-
-				if (!isNovalue(slopeValue) && !isNovalue(tanPhiValue)
-						&& !isNovalue(cohValue) && !isNovalue(rhoValue)
-						&& !isNovalue(hsValue)) {
-					if (hsValue <= EPS || slopeValue > pRock) {
-						qcritIter.setSample(i, j, 0, ROCK);
-					} else {
-						double checkUnstable = tanPhiValue + cohValue
-								/ (9810.0 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						if (slopeValue >= checkUnstable) {
-							/*
-							 * uncond unstable
-							 */
-							qcritIter.setSample(i, j, 0, 5);
-						} else {
-							double checkStable = tanPhiValue
-									* (1 - 1 / rhoValue) + cohValue
-									/ (9810 * rhoValue * hsValue)
-									* (1 + pow(slopeValue, 2));
-							if (slopeValue < checkStable) {
-								/*
-								 * uncond. stable
-								 */
-								qcritIter.setSample(i, j, 0, 0);
-							} else {
-								double qCrit = trasmissivityRI.getSampleDouble(
-										i, j, 0)
-										* sin(atan(slopeValue))
-										/ abRI.getSampleDouble(i, j, 0)
-										* rhoValue
-										* (1 - slopeValue / tanPhiValue + cohValue
-												/ (9810 * rhoValue * hsValue * tanPhiValue)
-												* (1 + pow(slopeValue, 2)))
-										* 1000;
-								qcritIter.setSample(i, j, 0, qCrit);
-								/*
-								 * see the Qcrit (critical effective
-								 * precipitation) that leads the slope to
-								 * instability (see article of Montgomery et Al,
-								 * Hydrological Processes, 12, 943-955, 1998)
-								 */
-								double value = qcritIter.getSampleDouble(i, j,
-										0);
-								if (value > 0 && value < 50)
-									qcritIter.setSample(i, j, 0, 1);
-								if (value >= 50 && value < 100)
-									qcritIter.setSample(i, j, 0, 2);
-								if (value >= 100 && value < 200)
-									qcritIter.setSample(i, j, 0, 3);
-								if (value >= 200)
-									qcritIter.setSample(i, j, 0, 4);
-							}
-						}
-					}
-				} else {
-					qcritIter.setSample(i, j, 0, doubleNovalue);
-				}
-			}
-		}
-		pm.done();
-
 		/*
 		 * build the class matrix 1=inc inst 2=inc stab 3=stab 4=instab 0 inst 1
 		 * stab rock=presence of rock
@@ -344,15 +282,18 @@ public class OmsShalstab extends JGTModel {
 		for (int j = 0; j < rows; j++) {
 			pm.worked(1);
 			for (int i = 0; i < cols; i++) {
-				Tq = trasmissivityRI.getSampleDouble(i, j, 0)
-						/ (effectiveRI.getSampleDouble(i, j, 0) / 1000.0);
+
 				double slopeValue = slopeRI.getSampleDouble(i, j, 0);
 				double abValue = abRI.getSampleDouble(i, j, 0);
 				double tangPhiValue = frictionRI.getSampleDouble(i, j, 0);
 				double cohValue = cohesionRI.getSampleDouble(i, j, 0);
 				double rhoValue = densityRI.getSampleDouble(i, j, 0);
 				double hsValue = hsIter.getSampleDouble(i, j, 0);
-
+				Tq = trasmissivityRI.getSampleDouble(i, j, 0)
+						/ (effectiveRI.getSampleDouble(i, j, 0) / 1000.0);
+				if(computeTransmissivity){
+					Tq=trasmissivityRI.getSampleDouble(i, j, 0)*hsValue;
+				}
 				if (!isNovalue(slopeValue) && !isNovalue(abValue)
 						&& !isNovalue(tangPhiValue) && !isNovalue(cohValue)
 						&& !isNovalue(rhoValue) && !isNovalue(hsValue)) {
@@ -360,55 +301,39 @@ public class OmsShalstab extends JGTModel {
 						classiIter.setSample(i, j, 0, ROCK);
 						classi2Iter.setSample(i, j, 0, ROCK);
 					} else {
-						double checkUncondUnstable = tangPhiValue + cohValue
-								/ (9810 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						double checkUncondStable = tangPhiValue
-								* (1 - 1 / rhoValue) + cohValue
-								/ (9810 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						double checkStable = Tq
-								* sin(atan(slopeValue))
-								* rhoValue
-								* (1 - slopeValue / tangPhiValue + cohValue
-										/ (9810 * rhoValue * hsValue * tangPhiValue)
-										* (1 + pow(slopeValue, 2)));
-						if (slopeValue >= checkUncondUnstable) {
+						if(slopeValue==0){slopeValue=0.001;}
+						double minvalue = Math.min(
+								(1 / Tq) * abValue
+										/ Math.sin(Math.atan(slopeValue)), 1.0);
+						//System.out.println(minvalue+" "+abValue/ Math.sin(Math.atan(slopeValue)));
+						double terwater = minvalue * 9810 * hsValue;
+						double cosquadroalpha = Math.pow(
+								(Math.cos(Math.atan(slopeValue))), 2);
+						double fsnum = cohValue
+								+ ((9810 * rhoValue * hsValue) - terwater)
+								* cosquadroalpha * tangPhiValue;
+						double fsden = 9810 * rhoValue * hsValue
+								* Math.sin(Math.atan(slopeValue))
+								* Math.cos(Math.atan(slopeValue));
+						double fs = fsnum / fsden;
+
+						if (fs >= pThresholdFS) {
 							classiIter.setSample(i, j, 0, 1);
-							classi2Iter.setSample(i, j, 0, 0);
-
-						} else if (slopeValue < checkUncondStable) {
-							classiIter.setSample(i, j, 0, 2);
-							classi2Iter.setSample(i, j, 0, 1);
-
-						} else if (abValue < checkStable
-								&& classiIter.getSampleDouble(i, j, 0) != 1
-								&& classiIter.getSampleDouble(i, j, 0) != 2) {
-							classiIter.setSample(i, j, 0, 3);
-							classi2Iter.setSample(i, j, 0, 1);
 
 						} else {
-							classiIter.setSample(i, j, 0, 4);
-							classi2Iter.setSample(i, j, 0, 0);
+							classiIter.setSample(i, j, 0, 0);
 
 						}
 					}
 				} else {
 					classiIter.setSample(i, j, 0, doubleNovalue);
-					classi2Iter.setSample(i, j, 0, doubleNovalue);
 				}
 			}
 		}
 		pm.done();
 
-		outQcrit = CoverageUtilities.buildCoverage("qcrit", qcritWR, regionMap,
-				inSlope.getCoordinateReferenceSystem());
 		outShalstab = CoverageUtilities.buildCoverage("classi", classiWR,
 				regionMap, inSlope.getCoordinateReferenceSystem());
 
-		outShalstab2Classes = CoverageUtilities.buildCoverage("classi2", classi2WR,
-				regionMap, inSlope.getCoordinateReferenceSystem());
-
 	}
-
 }

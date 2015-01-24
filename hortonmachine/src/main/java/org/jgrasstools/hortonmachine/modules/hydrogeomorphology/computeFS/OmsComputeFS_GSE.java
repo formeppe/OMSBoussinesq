@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.jgrasstools.hortonmachine.modules.hydrogeomorphology.shalstab;
+package org.jgrasstools.hortonmachine.modules.hydrogeomorphology.computeFS;
 
 import static java.lang.Math.atan;
 import static java.lang.Math.pow;
@@ -72,6 +72,8 @@ import org.geotools.coverage.grid.GridCoverage2D;
 import org.jgrasstools.gears.libs.modules.JGTModel;
 import org.jgrasstools.gears.utils.coverage.ConstantRandomIter;
 import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
+import org.jgrasstools.hortonmachine.modules.geomorphology.ab.OmsAb;
+import org.jgrasstools.hortonmachine.modules.geomorphology.curvatures.OmsCurvatures;
 
 @Description(OMSSHALSTAB_DESCRIPTION)
 @Author(name = OMSSHALSTAB_AUTHORNAMES, contact = OMSSHALSTAB_AUTHORCONTACTS)
@@ -80,11 +82,15 @@ import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
 @Name(OMSSHALSTAB_NAME)
 @Status(OMSSHALSTAB_STATUS)
 @License(OMSSHALSTAB_LICENSE)
-public class OmsShalstab extends JGTModel {
+public class OmsComputeFS_GSE extends JGTModel {
 
 	@Description(OMSSHALSTAB_inSlope_DESCRIPTION)
 	@In
 	public GridCoverage2D inSlope = null;
+
+	@Description(OMSSHALSTAB_inSlope_DESCRIPTION)
+	@In
+	public int pMode = 0;
 
 	@Description(OMSSHALSTAB_inTca_DESCRIPTION)
 	@In
@@ -99,6 +105,15 @@ public class OmsShalstab extends JGTModel {
 	@Unit("m^2/day")
 	@In
 	public double pTrasmissivity = -1.0;
+
+	@Description(OMSSHALSTAB_inTca_DESCRIPTION)
+	@In
+	public GridCoverage2D inDem = null;
+
+	@Description(OMSSHALSTAB_pTrasmissivity_DESCRIPTION)
+	@Unit("m^2/day")
+	@In
+	public double pThresholdFS = -1.0;
 
 	@Description(OMSSHALSTAB_inTgphi_DESCRIPTION)
 	@In
@@ -117,6 +132,15 @@ public class OmsShalstab extends JGTModel {
 	@Unit("Pa")
 	@In
 	public double pCohesion = -1.0;
+
+	@Description(OMSSHALSTAB_inCohesion_DESCRIPTION)
+	@Unit("Pa")
+	@In
+	public GridCoverage2D inSoilPorosity = null;
+
+	@Description(OMSSHALSTAB_pRho_DESCRIPTION)
+	@In
+	public double pSoilPorosity = -1.0;
 
 	@Description(OMSSHALSTAB_inSdepth_DESCRIPTION)
 	@Unit("m")
@@ -138,30 +162,42 @@ public class OmsShalstab extends JGTModel {
 	@In
 	public double pQ = -1.0;
 
+	@Description(OMSSHALSTAB_pQ_DESCRIPTION)
+	@Unit("mm/day")
+	@In
+	public boolean computeTransmissivity = false;
+
 	@Description(OMSSHALSTAB_inRho_DESCRIPTION)
 	@In
-	public GridCoverage2D inRho = null;
+	public GridCoverage2D inGs = null;
 
 	@Description(OMSSHALSTAB_pRho_DESCRIPTION)
 	@In
-	public double pRho = -1.0;
+	public double pGs = -1.0;
+
+	@Description(OMSSHALSTAB_inRho_DESCRIPTION)
+	@In
+	public GridCoverage2D inDuration = null;
+
+	@Description(OMSSHALSTAB_pRho_DESCRIPTION)
+	@In
+	public double pDuration = -1.0;
+
+	@Description(OMSSHALSTAB_inRho_DESCRIPTION)
+	@In
+	public GridCoverage2D inDegreeOfSat = null;
+
+	@Description(OMSSHALSTAB_pRho_DESCRIPTION)
+	@In
+	public double pDegreeOfSat = -1.0;
 
 	@Description(OMSSHALSTAB_pRock_DESCRIPTION)
 	@In
 	public double pRock = -9999.0;
 
-	@Description(OMSSHALSTAB_outQcrit_DESCRIPTION)
-	@Out
-	public GridCoverage2D outQcrit = null;
-
 	@Description(OMSSHALSTAB_outShalstab_DESCRIPTION)
 	@Out
 	public GridCoverage2D outShalstab = null;
-	
-	@Description(OMSSHALSTAB_outShalstab_DESCRIPTION)
-	@Out
-	public GridCoverage2D outShalstab2Classes = null;
-	
 
 	public final double EPS = 0.01;
 
@@ -180,8 +216,18 @@ public class OmsShalstab extends JGTModel {
 		if (pRock == -9999.0)
 			pRock = 5.67;
 
+		OmsCurvatures c = new OmsCurvatures();
+		c.inElev = inDem;
+		c.process();
+
+		OmsAb ab = new OmsAb();
+		ab.inPlan = c.outPlan;
+		ab.inTca = inTca;
+		ab.process();
+
+		RenderedImage abRI = ab.outAb.getRenderedImage();
+
 		RenderedImage slopeRI = inSlope.getRenderedImage();
-		RenderedImage abRI = inTca.getRenderedImage();
 
 		RandomIter trasmissivityIter = null;
 		if (inTrasmissivity != null) {
@@ -223,16 +269,35 @@ public class OmsShalstab extends JGTModel {
 			qIter = new ConstantRandomIter(pQ);
 		}
 
-		RandomIter rhoIter = null;
-		if (inRho != null) {
-			RenderedImage rhoRI = inRho.getRenderedImage();
-			rhoIter = RandomIterFactory.create(rhoRI, null);
+		RandomIter gsIter = null;
+		if (inGs != null) {
+			RenderedImage gsRI = inGs.getRenderedImage();
+			gsIter = RandomIterFactory.create(gsRI, null);
 		} else {
-			rhoIter = new ConstantRandomIter(pRho);
+			gsIter = new ConstantRandomIter(pGs);
 		}
 
+		RandomIter soilPorosityIter = null;
+		if (inSoilPorosity != null) {
+			RenderedImage soilPorosityRI = inSoilPorosity.getRenderedImage();
+			soilPorosityIter = RandomIterFactory.create(soilPorosityRI, null);
+		} else {
+			soilPorosityIter = new ConstantRandomIter(pSoilPorosity);
+		}
+
+		RandomIter degreeOfSatIter = null;
+		if (inDegreeOfSat != null) {
+			RenderedImage degreeOfSatRI = inDegreeOfSat.getRenderedImage();
+			degreeOfSatIter = RandomIterFactory.create(degreeOfSatRI, null);
+		} else {
+			degreeOfSatIter = new ConstantRandomIter(pDegreeOfSat);
+		}
+
+		RandomIter rhoWIter = null;
+		rhoWIter = new ConstantRandomIter(9798.0);
+
 		qcrit(slopeRI, abRI, trasmissivityIter, tghiIter, cohesionIter, hsIter,
-				qIter, rhoIter);
+				qIter, gsIter, soilPorosityIter, degreeOfSatIter, rhoWIter);
 	}
 
 	/**
@@ -241,7 +306,9 @@ public class OmsShalstab extends JGTModel {
 	private void qcrit(RenderedImage slope, RenderedImage ab,
 			RandomIter trasmissivityRI, RandomIter frictionRI,
 			RandomIter cohesionRI, RandomIter hsIter, RandomIter effectiveRI,
-			RandomIter densityRI) {
+			RandomIter gsIter, RandomIter soilPorosityIter,
+			RandomIter degreeOfSatIter, RandomIter rhoWIter) {
+
 		HashMap<String, Double> regionMap = CoverageUtilities
 				.getRegionParamsFromGridCoverage(inSlope);
 		int cols = regionMap.get(CoverageUtilities.COLS).intValue();
@@ -250,165 +317,141 @@ public class OmsShalstab extends JGTModel {
 		RandomIter slopeRI = RandomIterFactory.create(slope, null);
 		RandomIter abRI = RandomIterFactory.create(ab, null);
 
-		WritableRaster qcritWR = CoverageUtilities.createDoubleWritableRaster(
-				cols, rows, null, null, null);
-		WritableRandomIter qcritIter = RandomIterFactory.createWritable(
-				qcritWR, null);
 		WritableRaster classiWR = CoverageUtilities.createDoubleWritableRaster(
 				cols, rows, null, null, null);
+		// CoverageUtilities.setNovalueBorder(classiWR);
 		WritableRandomIter classiIter = RandomIterFactory.createWritable(
 				classiWR, null);
 
-		WritableRaster classi2WR = CoverageUtilities
-				.createDoubleWritableRaster(cols, rows, null, null, null);
-		WritableRandomIter classi2Iter = RandomIterFactory.createWritable(
-				classi2WR, null);
-
-		pm.beginTask("Creating qcrit map...", rows);
-		for (int j = 0; j < rows; j++) {
-			pm.worked(1);
-			for (int i = 0; i < cols; i++) {
-				double slopeValue = slopeRI.getSampleDouble(i, j, 0);
-				double tanPhiValue = frictionRI.getSampleDouble(i, j, 0);
-				double cohValue = cohesionRI.getSampleDouble(i, j, 0);
-				double rhoValue = densityRI.getSampleDouble(i, j, 0);
-				double hsValue = hsIter.getSampleDouble(i, j, 0);
-
-				if (!isNovalue(slopeValue) && !isNovalue(tanPhiValue)
-						&& !isNovalue(cohValue) && !isNovalue(rhoValue)
-						&& !isNovalue(hsValue)) {
-					if (hsValue <= EPS || slopeValue > pRock) {
-						qcritIter.setSample(i, j, 0, ROCK);
-					} else {
-						double checkUnstable = tanPhiValue + cohValue
-								/ (9810.0 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						if (slopeValue >= checkUnstable) {
-							/*
-							 * uncond unstable
-							 */
-							qcritIter.setSample(i, j, 0, 5);
-						} else {
-							double checkStable = tanPhiValue
-									* (1 - 1 / rhoValue) + cohValue
-									/ (9810 * rhoValue * hsValue)
-									* (1 + pow(slopeValue, 2));
-							if (slopeValue < checkStable) {
-								/*
-								 * uncond. stable
-								 */
-								qcritIter.setSample(i, j, 0, 0);
-							} else {
-								double qCrit = trasmissivityRI.getSampleDouble(
-										i, j, 0)
-										* sin(atan(slopeValue))
-										/ abRI.getSampleDouble(i, j, 0)
-										* rhoValue
-										* (1 - slopeValue / tanPhiValue + cohValue
-												/ (9810 * rhoValue * hsValue * tanPhiValue)
-												* (1 + pow(slopeValue, 2)))
-										* 1000;
-								qcritIter.setSample(i, j, 0, qCrit);
-								/*
-								 * see the Qcrit (critical effective
-								 * precipitation) that leads the slope to
-								 * instability (see article of Montgomery et Al,
-								 * Hydrological Processes, 12, 943-955, 1998)
-								 */
-								double value = qcritIter.getSampleDouble(i, j,
-										0);
-								if (value > 0 && value < 50)
-									qcritIter.setSample(i, j, 0, 1);
-								if (value >= 50 && value < 100)
-									qcritIter.setSample(i, j, 0, 2);
-								if (value >= 100 && value < 200)
-									qcritIter.setSample(i, j, 0, 3);
-								if (value >= 200)
-									qcritIter.setSample(i, j, 0, 4);
-							}
-						}
-					}
-				} else {
-					qcritIter.setSample(i, j, 0, doubleNovalue);
-				}
-			}
-		}
-		pm.done();
-
-		/*
-		 * build the class matrix 1=inc inst 2=inc stab 3=stab 4=instab 0 inst 1
-		 * stab rock=presence of rock
-		 */
 		pm.beginTask("Creating stability map...", rows);
-		double Tq = 0;
+
 		for (int j = 0; j < rows; j++) {
 			pm.worked(1);
 			for (int i = 0; i < cols; i++) {
-				Tq = trasmissivityRI.getSampleDouble(i, j, 0)
-						/ (effectiveRI.getSampleDouble(i, j, 0) / 1000.0);
-				double slopeValue = slopeRI.getSampleDouble(i, j, 0);
-				double abValue = abRI.getSampleDouble(i, j, 0);
-				double tangPhiValue = frictionRI.getSampleDouble(i, j, 0);
-				double cohValue = cohesionRI.getSampleDouble(i, j, 0);
-				double rhoValue = densityRI.getSampleDouble(i, j, 0);
-				double hsValue = hsIter.getSampleDouble(i, j, 0);
 
+				double slopeValue = slopeRI.getSampleDouble(i, j, 0);
+				// no unit
+				double abValue = abRI.getSampleDouble(i, j, 0);
+				// m
+				double tangPhiValue = frictionRI.getSampleDouble(i, j, 0);
+				// no units
+				double cohValue = cohesionRI.getSampleDouble(i, j, 0);
+				// Pascal [PA]
+				double gsValue = gsIter.getSampleDouble(i, j, 0);
+				// no unit
+				double srValue = degreeOfSatIter.getSampleDouble(i, j, 0);
+				// no unit
+				double hsValue = hsIter.getSampleDouble(i, j, 0);
+				// m
+				double soilPorosityValue = soilPorosityIter.getSampleDouble(i,
+						j, 0);
+				// no unit
+				double rainfall_m_giorno = effectiveRI.getSampleDouble(i, j, 0) / 1000;
+				// m/g
+				double rhoW = rhoWIter.getSampleDouble(i, j, 0);
+				// kg/m3
+				double transmissivity_m2_g = trasmissivityRI.getSampleDouble(i,
+						j, 0);
+				// m2/g
+				if (computeTransmissivity) {
+					transmissivity_m2_g = trasmissivityRI.getSampleDouble(i, j,
+							0) * hsValue;
+					// m2/g
+				}
 				if (!isNovalue(slopeValue) && !isNovalue(abValue)
 						&& !isNovalue(tangPhiValue) && !isNovalue(cohValue)
-						&& !isNovalue(rhoValue) && !isNovalue(hsValue)) {
-					if (hsValue <= EPS || slopeValue > pRock) {
-						classiIter.setSample(i, j, 0, ROCK);
-						classi2Iter.setSample(i, j, 0, ROCK);
+						&& !isNovalue(soilPorosityValue) && !isNovalue(hsValue)
+						&& !isNovalue(srValue) && !isNovalue(rhoW)
+						&& !isNovalue(gsValue)
+						&& !isNovalue(transmissivity_m2_g)) {
+					if ((hsValue <= EPS || slopeValue > pRock)
+							|| slopeValue < 0.001) {
+						classiIter.setSample(i, j, 0, 1);
 					} else {
-						double checkUncondUnstable = tangPhiValue + cohValue
-								/ (9810 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						double checkUncondStable = tangPhiValue
-								* (1 - 1 / rhoValue) + cohValue
-								/ (9810 * rhoValue * hsValue)
-								* (1 + pow(slopeValue, 2));
-						double checkStable = Tq
-								* sin(atan(slopeValue))
-								* rhoValue
-								* (1 - slopeValue / tangPhiValue + cohValue
-										/ (9810 * rhoValue * hsValue * tangPhiValue)
-										* (1 + pow(slopeValue, 2)));
-						if (slopeValue >= checkUncondUnstable) {
+
+						double eValue = soilPorosityValue
+								/ (1. - soilPorosityValue);
+						// VERICARE abvalue unita di misura
+						// if (slopeValue == 0) {
+						// classiIter.setSample(i, j, 0, 1);
+						//
+						// }
+						double alpha = Math.atan(slopeValue);
+						double w = -999;
+						if (pMode == 0) {
+							// Do shalstablike
+							w = Math.min(
+									((rainfall_m_giorno / transmissivity_m2_g) * (abValue / Math
+											.sin(alpha))), 1.0);
+						} else {
+							if (pMode == 1) {
+								// Do Rossolike
+								double par1 = (rainfall_m_giorno / transmissivity_m2_g)
+										* (abValue / Math.sin(alpha));
+								if (par1 <= 1.0) {
+									double A1 = (eValue * (1.0 - srValue) / (1.0 + eValue));
+									double csi = (par1 / hsValue) * pDuration;
+
+									double coeff = 1. - Math.exp(-csi / A1);
+									w = par1 * coeff;
+									if (w != w) {
+										System.out.println("Error in w");
+									}
+								} else {
+									double A1 = (eValue * (1.0 - srValue) / (1.0 + eValue));
+									double csi = (par1 / hsValue) * pDuration;
+									double par2 = -A1
+											* Math.log(1.0 - 1.0 / par1);
+									if (csi <= par2) {
+										double coeff = 1. - Math.exp(-csi / A1);
+										w = par1 * coeff;
+										if (w != w) {
+											System.out.println("Error in w");
+										}
+									} else {
+										w = 1.0;
+										if (w != w) {
+											System.out.println("Error in w");
+										}
+									}
+
+								}
+
+							} else {
+								System.out.println("Error in setting pMode");
+
+							}
+
+						}
+
+						double fsnumC = cohValue
+								* (1. + eValue)
+								/ ((gsValue + eValue * srValue + w * eValue
+										* (1.0 - srValue))
+										* rhoW * 9.8 * hsValue * sin(alpha) * Math
+											.cos(alpha));
+						double fsnumPhi = ((gsValue + eValue * srValue - w
+								* (1. + eValue * srValue)) / (gsValue + eValue
+								* srValue + w * eValue * (1.0 - srValue)))
+								* tangPhiValue / slopeValue;
+						double fs = fsnumC + fsnumPhi;
+						if (fs >= pThresholdFS) {
 							classiIter.setSample(i, j, 0, 1);
-							classi2Iter.setSample(i, j, 0, 0);
-
-						} else if (slopeValue < checkUncondStable) {
-							classiIter.setSample(i, j, 0, 2);
-							classi2Iter.setSample(i, j, 0, 1);
-
-						} else if (abValue < checkStable
-								&& classiIter.getSampleDouble(i, j, 0) != 1
-								&& classiIter.getSampleDouble(i, j, 0) != 2) {
-							classiIter.setSample(i, j, 0, 3);
-							classi2Iter.setSample(i, j, 0, 1);
 
 						} else {
-							classiIter.setSample(i, j, 0, 4);
-							classi2Iter.setSample(i, j, 0, 0);
+							classiIter.setSample(i, j, 0, 0);
 
 						}
 					}
 				} else {
 					classiIter.setSample(i, j, 0, doubleNovalue);
-					classi2Iter.setSample(i, j, 0, doubleNovalue);
 				}
 			}
 		}
 		pm.done();
 
-		outQcrit = CoverageUtilities.buildCoverage("qcrit", qcritWR, regionMap,
-				inSlope.getCoordinateReferenceSystem());
 		outShalstab = CoverageUtilities.buildCoverage("classi", classiWR,
 				regionMap, inSlope.getCoordinateReferenceSystem());
 
-		outShalstab2Classes = CoverageUtilities.buildCoverage("classi2", classi2WR,
-				regionMap, inSlope.getCoordinateReferenceSystem());
-
 	}
-
 }
