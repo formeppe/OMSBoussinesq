@@ -87,9 +87,11 @@ public class ComputeBeqInput extends JGTModel {
 	@Description("Porosity Map")
 	@In
 	public double valueCV = -9999;
+	
 	@Description("Porosity Map")
 	@In
 	public double valueMV = -9999;
+	
 	@Description("Porosity Map")
 	@In
 	public double valueEtaDricheletV = -9999;
@@ -154,7 +156,6 @@ public class ComputeBeqInput extends JGTModel {
 	@Out
 	public double[] vHydraulicCondictivity = null;
 
-	public final double EPS = 0.01;
 
 	@Execute
 	public void process() throws Exception {
