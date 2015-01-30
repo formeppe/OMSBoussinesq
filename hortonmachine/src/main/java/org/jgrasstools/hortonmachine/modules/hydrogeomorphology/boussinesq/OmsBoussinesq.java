@@ -208,6 +208,13 @@ public class OmsBoussinesq extends JGTModel {
 
 	}
 
+	/**
+	 * @brief Initial method, to compute the Water Table without Dirichlet's BC
+	 * It calls all the methods useful to compute the Water Table in a domain
+	 * without Dirichlet's BC
+	 * @param
+	 * @return
+	 */
 	public void computeBEqNoDrichelet(String boundaryCondition)
 			throws IOException, IterativeSolverDoubleNotConvergedException {
 		// allocate the memory for eta array
@@ -236,6 +243,10 @@ public class OmsBoussinesq extends JGTModel {
 
 	}
 
+	/**
+	 * @brief A method to compute the two elements of the linear system
+	 * @param[in] eta The piezometric head at the previous timestep
+	 */
 	public void computeBEqArraysNoDrichelet(double[] eta) {
 
 		matT = computeT(eta);
@@ -243,24 +254,27 @@ public class OmsBoussinesq extends JGTModel {
 
 	}
 
+	/**
+	 * @brief Eq. (25) of [ Cordano & Rigon, 2012 ]
+	 *
+	 * @param[in] eta The piezometric head at the previous timestep
+	 * @return arrB The array of the known terms
+	 */
 	public double[] computeBNoDrichelet(double[] eta) {
 
-		// declaration of the array that holds the known terms of the linear
-		// system
 		double[] arrB = new double[Np];
 
 		for (int i = 0; i < Np; i++) {
-			// compute the water volume stored in the cell
+
+			// water volume stored in the cell at the previous timestep
 			double volume = PolygonGeometricalWetProperties.computeWaterVolume(
 					eta[i], bedrockElevation[i], porosity[i], planArea[i]);
 
-			// delta t deve essere minore di 1/c
+			// TIMESTEP has to be less then 1/c
 			arrB[i] = volume + TIMESTEP * planArea[i] * source[i] - TIMESTEP
 					* planArea[i] * c[i] * Math.pow(volume / planArea[i], d[i]);
 			outflow[i] = TIMESTEP * planArea[i] * c[i]
 					* Math.pow(volume / planArea[i], d[i]);
-
-			// TextIO.putln(ComputationalDomain.outflow[i]);
 
 			if (arrB[i] < 0) {
 
