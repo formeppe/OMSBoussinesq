@@ -25,6 +25,8 @@ import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_LABE
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_LICENSE;
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_NAME;
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_STATUS;
+import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_inCohesion_DESCRIPTION;
+import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_pCohesion_DESCRIPTION;
 
 import java.awt.image.RenderedImage;
 import java.awt.image.WritableRaster;
@@ -50,9 +52,12 @@ import oms3.annotations.License;
 import oms3.annotations.Name;
 import oms3.annotations.Out;
 import oms3.annotations.Status;
+import oms3.annotations.Unit;
 
 import org.geotools.coverage.grid.GridCoverage2D;
+import org.jgrasstools.gears.io.rasterreader.OmsRasterReader;
 import org.jgrasstools.gears.libs.modules.JGTModel;
+import org.jgrasstools.gears.utils.coverage.ConstantRandomIter;
 import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
 
 @Description(OMSSHALSTAB_DESCRIPTION)
@@ -68,9 +73,23 @@ public class ComputeBeqInput extends JGTModel {
 	@In
 	public GridCoverage2D inDtm = null;
 
-	@Description("Porosity Map")
+	@Description("Path to Porosity Map")
 	@In
-	public GridCoverage2D inPorosity = null;
+	public String pathToPorosityMap = null;
+
+	@Description("Path to Porosity value")
+	@In
+	public double inPorosityValue = -9999;
+
+	@Description()
+	@Unit("Pa")
+	@In
+	public GridCoverage2D inCohesion = null;
+
+	@Description(OMSSHALSTAB_pCohesion_DESCRIPTION)
+	@Unit("Pa")
+	@In
+	public double pCohesion = -1.0;
 
 	@Description("Porosity Map")
 	@In
@@ -87,11 +106,11 @@ public class ComputeBeqInput extends JGTModel {
 	@Description("Porosity Map")
 	@In
 	public double valueCV = -9999;
-	
+
 	@Description("Porosity Map")
 	@In
 	public double valueMV = -9999;
-	
+
 	@Description("Porosity Map")
 	@In
 	public double valueEtaDricheletV = -9999;
@@ -156,6 +175,7 @@ public class ComputeBeqInput extends JGTModel {
 	@Out
 	public double[] vHydraulicCondictivity = null;
 
+	public GridCoverage2D porosityGridCoverage = null;
 
 	@Execute
 	public void process() throws Exception {
@@ -163,10 +183,26 @@ public class ComputeBeqInput extends JGTModel {
 		// return;
 		// }
 		checkNull(inDtm);
+		RenderedImage dtmRI = inDtm.getRenderedImage();
 
-		RenderedImage slopeRI = inDtm.getRenderedImage();
+		if (pathToPorosityMap != null) {
+			OmsRasterReader reader = new OmsRasterReader();
+			reader.file = pathToPorosityMap;
+			reader.fileNovalue = -9999.0;
+			reader.geodataNovalue = Double.NaN;
+			reader.process();
+			porosityGridCoverage = reader.outRaster;
+		}
 
-		qcrit(slopeRI);
+		RandomIter porosityIter = null;
+		if (porosityGridCoverage != null) {
+			RenderedImage prosotyRI = porosityGridCoverage.getRenderedImage();
+			porosityIter = RandomIterFactory.create(prosotyRI, null);
+		} else {
+			porosityIter = new ConstantRandomIter(inPorosityValue);
+		}
+
+		qcrit(dtmRI, porosityIter);
 	}
 
 	/**
@@ -174,7 +210,8 @@ public class ComputeBeqInput extends JGTModel {
 	 * 
 	 * @throws IOException
 	 */
-	private void qcrit(RenderedImage slope) throws IOException {
+	private void qcrit(RenderedImage dtm, RandomIter porosityIter)
+			throws IOException {
 
 		HashMap<String, Double> regionMap = CoverageUtilities
 				.getRegionParamsFromGridCoverage(inDtm);
@@ -184,7 +221,7 @@ public class ComputeBeqInput extends JGTModel {
 				cols, rows, null, null, null);
 		WritableRandomIter classiIter = RandomIterFactory.createWritable(
 				classiWR, null);
-		RandomIter slopeRI = RandomIterFactory.create(slope, null);
+		RandomIter slopeRI = RandomIterFactory.create(dtm, null);
 		int contaPoligoni = 0;
 		LinkedList<Integer> rowP = new LinkedList<Integer>();
 		LinkedList<Integer> colP = new LinkedList<Integer>();
@@ -203,10 +240,11 @@ public class ComputeBeqInput extends JGTModel {
 			for (int i = 0; i < cols; i++) {
 
 				double dtmValue = slopeRI.getSampleDouble(i, j, 0);
+				double porosityValue = porosityIter.getSampleDouble(i, j, 0);
 				double valueEtaInitialCondV = dtmValue
 						+ valueEtaInitialCondVtoAddtoDem;
 
-				if (!isNovalue(dtmValue)) {
+				if (!isNovalue(dtmValue) && !isNovalue(porosityValue)) {
 					contaPoligoni += 1;
 					rowP.add(j);
 					colP.add(i);
@@ -219,7 +257,7 @@ public class ComputeBeqInput extends JGTModel {
 							.doubleValue()
 							* regionMap.get(CoverageUtilities.YRES)
 									.doubleValue());
-					valuePorosity.add(valuePorosityV);
+					valuePorosity.add(porosityValue);
 					valueSource.add(valueSourceV);
 					valueBedrock.add(dtmValue);
 
