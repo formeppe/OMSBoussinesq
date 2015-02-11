@@ -24,8 +24,8 @@ import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_LABE
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_LICENSE;
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_NAME;
 import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_STATUS;
-import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_inCohesion_DESCRIPTION;
-import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_pCohesion_DESCRIPTION;
+// import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_inCohesion_DESCRIPTION;
+// import static org.jgrasstools.hortonmachine.i18n.HortonMessages.OMSSHALSTAB_pCohesion_DESCRIPTION;
 
 import java.awt.image.RenderedImage;
 import java.awt.image.WritableRaster;
@@ -60,7 +60,7 @@ import org.jgrasstools.gears.utils.coverage.ConstantRandomIter;
 import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
 
 @Description(OMSSHALSTAB_DESCRIPTION)
-@Author(name = "Formetta Serafin Cordano")
+@Author(name = "Formetta, Serafin, Cordano")
 @Keywords(OMSSHALSTAB_KEYWORDS)
 @Label(OMSSHALSTAB_LABEL)
 @Name(OMSSHALSTAB_NAME)
@@ -68,109 +68,138 @@ import org.jgrasstools.gears.utils.coverage.CoverageUtilities;
 @License(OMSSHALSTAB_LICENSE)
 public class ComputeBeqInput extends JGTModel {
 
+	/**
+	 *
+	 * INPUT
+	 *
+	 */
 	@Description("Digital Elevation Model of the bedrock")
+	@Unit("m")
 	@In
 	public GridCoverage2D inDtm = null;
 
 	@Description("Path to Porosity Map")
+	@Unit("-")
 	@In
 	public String pathToPorosityMap = null;
 
-	@Description("Path to Porosity value")
+	@Description("Single Porosity value")
+	@Unit("-")
 	@In
 	public double inPorosityValue = -9999;
 
-	@Description()
-	@Unit("Pa")
-	@In
-	public GridCoverage2D inCohesion = null;
+	// @Description()
+	// @Unit("Pa")
+	// @In
+	// public GridCoverage2D inCohesion = null;
 
-	@Description(OMSSHALSTAB_pCohesion_DESCRIPTION)
-	@Unit("Pa")
-	@In
-	public double pCohesion = -1.0;
+	// @Description(OMSSHALSTAB_pCohesion_DESCRIPTION)
+	// @Unit("Pa")
+	// @In
+	// public double pCohesion = -1.0;
 
-	@Description("Porosity Map")
+	@Description("Single Source value")
+	@Unit("m2/s")
 	@In
 	public double valueSourceV = -9999;
 
-	@Description("Porosity Map")
+	@Description("Initial thickness of the aquifer")
+	@Unit("m")
 	@In
 	public double valueEtaInitialCondVtoAddtoDem = -9999;
 
-	@Description("Porosity Map")
-	@In
-	public double valuePorosityV = -9999;
-
-	@Description("Porosity Map")
+	@Description("Single value for the OutFlow multiplicative factor")
+	@Unit("m^(1-d)/s")
 	@In
 	public double valueCV = -9999;
 
-	@Description("Porosity Map")
+	@Description("Single value fot the OutFlow exponent factor")
+	@Unit("-")
 	@In
 	public double valueMV = -9999;
 
-	@Description("Porosity Map")
+	@Description("Single value for the piezometric head in the Dirichlet cells")
+	@Unit("m")
 	@In
-	public double valueEtaDricheletV = -9999;
+	public double valueEtaDirichletV = -9999;
 
 	@Description("If true do simmetric")
+	@Unit("-")
 	@In
 	public boolean doSimmetricMatrix = true;
 
 	@Description("If true do simmetric")
+	@Unit("-")
 	@In
 	public String pPath = null;
 
+	/**
+	 *
+	 * OUTPUT
+	 *
+	 */
 	@Description("Numbered Polygon")
+	@Unit("-")
 	@Out
 	public GridCoverage2D outShalstab = null;
 
 	@Description("Numbered Polygon in rcform")
+	@Unit("-")
 	@Out
 	public int[] Mp = null;
 
-	@Description("Row pointer  in rcform ")
+	@Description("Row pointer in rcform")
+	@Unit("-")
 	@Out
 	public int[] Mj = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Shared sides in rcform")
+	@Unit("-")
 	@Out
 	public double[] Ml = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Source terms in rcform")
+	@Unit("m2/s")
 	@Out
 	public double[] vSource = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Initial piezometric head in rcform")
+	@Unit("m")
 	@Out
 	public double[] vEtaInitialCondV = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Porosity in rcform")
+	@Unit("")
 	@Out
 	public double[] vPorosity = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("OutFlow multiplicative factor in rcform")
+	@Unit("m^(1-d)/s")
 	@Out
 	public double[] vC = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("OutFlow exponent factor in rcform")
+	@Unit("-")
 	@Out
 	public double[] vM = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Piezometric head in the Dirichlet cells in rcform")
+	@Unit("m")
 	@Out
-	public double[] vEtaDrichelet = null;
+	public double[] vEtaDirichlet = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Height of the Bedrock in rcform")
+	@Unit("m")
 	@Out
 	public double[] vBedrock = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Planimetric area of the cells in rcform")
+	@Unit("m2")
 	@Out
 	public double[] vPlanarArea = null;
 
-	@Description("Shared sides  in rcform")
+	@Description("Hydraulic conductivity in rcform")
+	@Unit("m/s")
 	@Out
 	public double[] vHydraulicCondictivity = null;
 
@@ -250,7 +279,7 @@ public class ComputeBeqInput extends JGTModel {
 					valueP.add(contaPoligoni);
 					valueC.add(valueCV);
 					valueM.add(valueMV);
-					valueEtaDrcihelet.add(valueEtaDricheletV);
+					valueEtaDrcihelet.add(valueEtaDirichletV);
 					valueEtaInitialCond.add(valueEtaInitialCondV);
 					valuePlanArea.add(regionMap.get(CoverageUtilities.XRES)
 							.doubleValue()
@@ -278,7 +307,7 @@ public class ComputeBeqInput extends JGTModel {
 
 		vM = new double[valueP.size()];
 
-		vEtaDrichelet = new double[valueP.size()];
+		vEtaDirichlet = new double[valueP.size()];
 		vBedrock = new double[valueP.size()];
 		vPlanarArea = new double[valueP.size()];
 
@@ -288,7 +317,7 @@ public class ComputeBeqInput extends JGTModel {
 			vPorosity[kkk] = valuePorosity.get(kkk);
 			vC[kkk] = valueC.get(kkk);
 			vM[kkk] = valueM.get(kkk);
-			vEtaDrichelet[kkk] = valueEtaDrcihelet.get(kkk);
+			vEtaDirichlet[kkk] = valueEtaDrcihelet.get(kkk);
 			vBedrock[kkk] = valueBedrock.get(kkk);
 			vPlanarArea[kkk] = valuePlanArea.get(kkk);
 
@@ -464,11 +493,11 @@ public class ComputeBeqInput extends JGTModel {
 			}
 			Rstatfile.close();
 
-			s = (pPath + "/vEtaDrichelet");
+			s = (pPath + "/vEtaDirichlet");
 			Rstatfile = new FileWriter(s);
 			errestat = new PrintWriter(Rstatfile);
-			for (int i = 0; i < vEtaDrichelet.length; i++) {
-				errestat.println(vEtaDrichelet[i]);
+			for (int i = 0; i < vEtaDirichlet.length; i++) {
+				errestat.println(vEtaDirichlet[i]);
 			}
 			Rstatfile.close();
 
