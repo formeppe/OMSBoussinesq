@@ -98,30 +98,55 @@ public class ComputeBeqInput extends JGTModel {
 	// @In
 	// public double pCohesion = -1.0;
 
+	@Description("Path to Source terms Map")
+	@Unit("-")
+	@In
+	public String pathToSourceMap = null;
+
 	@Description("Single Source value")
 	@Unit("m2/s")
 	@In
-	public double valueSourceV = -9999;
+	public double inSourceV = -9999;
+
+	@Description("Path to the Map of init thickness of the aquifer")
+	@Unit("-")
+	@In
+	public String pathToEtaICMap = null;
 
 	@Description("Initial thickness of the aquifer")
 	@Unit("m")
 	@In
-	public double valueEtaInitialCondVtoAddtoDem = -9999;
+	public double inEtaInitCondVtoAddtoDem = -9999;
+
+	@Description("Path to OutFlow multiplicative factor Map")
+	@Unit("-")
+	@In
+	public String pathToCMap = null;
 
 	@Description("Single value for the OutFlow multiplicative factor")
 	@Unit("m^(1-d)/s")
 	@In
-	public double valueCV = -9999;
+	public double inCV = -9999;
 
-	@Description("Single value fot the OutFlow exponent factor")
+	@Description("Path to OutFlow exponent factor Map")
 	@Unit("-")
 	@In
-	public double valueMV = -9999;
+	public String pathToMMap = null;
+
+	@Description("Single value for the OutFlow exponent factor")
+	@Unit("-")
+	@In
+	public double inMV = -9999;
+
+	@Description("Path to Piezo-Head in the Dirichlet cells Map")
+	@Unit("-")
+	@In
+	public String pathToEtaDirichletMap = null;
 
 	@Description("Single value for the piezometric head in the Dirichlet cells")
 	@Unit("m")
 	@In
-	public double valueEtaDirichletV = -9999;
+	public double inEtaDirichletV = -9999;
 
 	@Description("If true do simmetric")
 	@Unit("-")
@@ -203,7 +228,12 @@ public class ComputeBeqInput extends JGTModel {
 	@Out
 	public double[] vHydraulicCondictivity = null;
 
-	public GridCoverage2D porosityGridCoverage = null;
+	public GridCoverage2D porosityGridCoverage = null,
+			      sourceGridCoverage = null,
+			      etaInitGridCoverage = null,
+			      cGridCoverage = null,
+			      mGridCoverage = null,
+			      etaDirichletGridCoverage = null;
 
 	@Execute
 	public void process() throws Exception {
@@ -213,32 +243,66 @@ public class ComputeBeqInput extends JGTModel {
 		checkNull(inDtm);
 		RenderedImage dtmRI = inDtm.getRenderedImage();
 
-		if (pathToPorosityMap != null) {
+		// if (pathToPorosityMap != null) {
+		// 	OmsRasterReader reader = new OmsRasterReader();
+		// 	reader.file = pathToPorosityMap;
+		// 	reader.fileNovalue = -9999.0;
+		// 	reader.geodataNovalue = Double.NaN;
+		// 	reader.process();
+		// 	porosityGridCoverage = reader.outRaster;
+		// }
+
+		RandomIter porosityIter = null,
+			   sourceIter = null,
+			   etaInitIter = null,
+			   cIter = null,
+			   mIter = null,
+			   etaDirichletIter = null;
+
+		getInputMaps(pathToPorosityMap, inPorosityValue, porosityGridCoverage, porosityIter);
+
+		getInputMaps(pathToSourceMap, inSourceV, sourceGridCoverage, sourceIter);
+		getInputMaps(pathToEtaICMap, inEtaInitCondVtoAddtoDem, etaInitGridCoverage, etaInitIter);
+		getInputMaps(pathToCMap, inCV, cGridCoverage, cIter);
+		getInputMaps(pathToMMap, inMV, mGridCoverage, mIter);
+		getInputMaps(pathToEtaDirichletMap, inEtaDirichletV, etaDirichletGridCoverage, etaDirichletIter);
+		// if (porosityGridCoverage != null) {
+		// 	RenderedImage prosotyRI = porosityGridCoverage.getRenderedImage();
+		// 	porosityIter = RandomIterFactory.create(prosotyRI, null);
+		// } else {
+		// 	porosityIter = new ConstantRandomIter(inPorosityValue);
+		// }
+
+		qcrit(dtmRI, porosityIter, sourceIter, etaInitIter, cIter, mIter, etaDirichletIter);
+	}
+
+	private void getInputMaps(final String i_str, final double i_value, GridCoverage2D i_grid, RandomIter i_iter) {
+
+		if (i_str != null) {
 			OmsRasterReader reader = new OmsRasterReader();
-			reader.file = pathToPorosityMap;
+			reader.file = i_str;
 			reader.fileNovalue = -9999.0;
 			reader.geodataNovalue = Double.NaN;
 			reader.process();
-			porosityGridCoverage = reader.outRaster;
+			i_grid = reader.outRaster;
 		}
 
-		RandomIter porosityIter = null;
-		if (porosityGridCoverage != null) {
-			RenderedImage prosotyRI = porosityGridCoverage.getRenderedImage();
-			porosityIter = RandomIterFactory.create(prosotyRI, null);
+		if (i_grid != null) {
+			RenderedImage tmpRI = i_grid.getRenderedImage();
+			i_iter = RandomIterFactory.create(tmpRI, null);
 		} else {
-			porosityIter = new ConstantRandomIter(inPorosityValue);
+			i_iter = new ConstantRandomIter(i_value);
 		}
 
-		qcrit(dtmRI, porosityIter);
 	}
-
 	/**
 	 * Calculates the trasmissivity in every pixel of the map.
 	 * 
 	 * @throws IOException
 	 */
-	private void qcrit(RenderedImage dtm, RandomIter porosityIter)
+	private void qcrit(RenderedImage dtm, RandomIter porosityIter, RandomIter sourceIter,
+			   RandomIter etaInitIter, RandomIter cIter, RandomIter mIter,
+			   RandomIter etaDirichletIter)
 			throws IOException {
 
 		HashMap<String, Double> regionMap = CoverageUtilities
@@ -269,24 +333,27 @@ public class ComputeBeqInput extends JGTModel {
 
 				double dtmValue = slopeRI.getSampleDouble(i, j, 0);
 				double porosityValue = porosityIter.getSampleDouble(i, j, 0);
-				double valueEtaInitialCondV = dtmValue
-						+ valueEtaInitialCondVtoAddtoDem;
-
+				double sourceValue = sourceIter.getSampleDouble(i, j, 0);
+				double etaInitValue = dtmValue + etaInitIter.getSampleDouble(i, j, 0);
+				double cValue = cIter.getSampleDouble(i, j, 0);
+				double mValue = mIter.getSampleDouble(i, j, 0);
+				double etaDirichletValue = etaDirichletIter.getSampleDouble(i, j, 0);
+				
 				if (!isNovalue(dtmValue) && !isNovalue(porosityValue)) {
 					contaPoligoni += 1;
 					rowP.add(j);
 					colP.add(i);
 					valueP.add(contaPoligoni);
-					valueC.add(valueCV);
-					valueM.add(valueMV);
-					valueEtaDrcihelet.add(valueEtaDirichletV);
-					valueEtaInitialCond.add(valueEtaInitialCondV);
+					valueC.add(cValue);
+					valueM.add(mValue);
+					valueEtaDrcihelet.add(etaDirichletValue);
+					valueEtaInitialCond.add(etaInitValue);
 					valuePlanArea.add(regionMap.get(CoverageUtilities.XRES)
 							.doubleValue()
 							* regionMap.get(CoverageUtilities.YRES)
 									.doubleValue());
 					valuePorosity.add(porosityValue);
-					valueSource.add(valueSourceV);
+					valueSource.add(sourceValue);
 					valueBedrock.add(dtmValue);
 
 					classiIter.setSample(i, j, 0, contaPoligoni);
