@@ -243,15 +243,6 @@ public class ComputeBeqInput extends JGTModel {
 		checkNull(inDtm);
 		RenderedImage dtmRI = inDtm.getRenderedImage();
 
-		// if (pathToPorosityMap != null) {
-		// 	OmsRasterReader reader = new OmsRasterReader();
-		// 	reader.file = pathToPorosityMap;
-		// 	reader.fileNovalue = -9999.0;
-		// 	reader.geodataNovalue = Double.NaN;
-		// 	reader.process();
-		// 	porosityGridCoverage = reader.outRaster;
-		// }
-
 		RandomIter porosityIter = null,
 			   sourceIter = null,
 			   etaInitIter = null,
@@ -260,18 +251,11 @@ public class ComputeBeqInput extends JGTModel {
 			   etaDirichletIter = null;
 
 		getInputMaps(pathToPorosityMap, inPorosityValue, porosityGridCoverage, porosityIter);
-
 		getInputMaps(pathToSourceMap, inSourceV, sourceGridCoverage, sourceIter);
 		getInputMaps(pathToEtaICMap, inEtaInitCondVtoAddtoDem, etaInitGridCoverage, etaInitIter);
 		getInputMaps(pathToCMap, inCV, cGridCoverage, cIter);
 		getInputMaps(pathToMMap, inMV, mGridCoverage, mIter);
 		getInputMaps(pathToEtaDirichletMap, inEtaDirichletV, etaDirichletGridCoverage, etaDirichletIter);
-		// if (porosityGridCoverage != null) {
-		// 	RenderedImage prosotyRI = porosityGridCoverage.getRenderedImage();
-		// 	porosityIter = RandomIterFactory.create(prosotyRI, null);
-		// } else {
-		// 	porosityIter = new ConstantRandomIter(inPorosityValue);
-		// }
 
 		qcrit(dtmRI, porosityIter, sourceIter, etaInitIter, cIter, mIter, etaDirichletIter);
 	}
@@ -290,11 +274,10 @@ public class ComputeBeqInput extends JGTModel {
 		if (i_grid != null) {
 			RenderedImage tmpRI = i_grid.getRenderedImage();
 			i_iter = RandomIterFactory.create(tmpRI, null);
-		} else {
-			i_iter = new ConstantRandomIter(i_value);
-		}
+		} else i_iter = new ConstantRandomIter(i_value);
 
 	}
+
 	/**
 	 * Calculates the trasmissivity in every pixel of the map.
 	 * 
