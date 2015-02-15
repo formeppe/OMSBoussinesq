@@ -47,9 +47,7 @@ public class RCIndexDiagonalElement {
 			 */
 			for (int j = Mp[i]; j < Mp[i + 1]; j++) {
 
-				if (Mi[j] == i) {
-					indexDiag[i] = j;
-				}
+				if (Mi[j] == i)	indexDiag[i] = j;
 
 			}
 		}

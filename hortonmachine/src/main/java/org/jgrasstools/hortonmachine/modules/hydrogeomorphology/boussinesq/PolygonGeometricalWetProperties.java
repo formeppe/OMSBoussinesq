@@ -27,14 +27,10 @@ public class PolygonGeometricalWetProperties {
 	 *       otherwise is equal to the porosity for planimetric area of the
 	 *       cell.
 	 * 
-	 * @param eta
-	 *            the piezometric head
-	 * @param zetaBedrock
-	 *            the bedrock elevation
-	 * @param porosity
-	 *            the porosity
-	 * @param planimetricArea
-	 *            the planimetric area of the cell
+	 * @param eta The piezometric head
+	 * @param zetaBedrock The bedrock elevation
+	 * @param porosity The porosity
+	 * @param planimetricArea The planimetric area of the cell
 	 * 
 	 * @return the wet area of the cell
 	 */
@@ -44,13 +40,8 @@ public class PolygonGeometricalWetProperties {
 		// the wet area is the variable that the method returns
 		double wetArea = 0;
 
-		if (eta > zetaBedrock) {
-			wetArea = porosity * planimetricArea;
-		} else {
-			wetArea = 0;
-		}
+		return wetArea = (eta > zetaBedrock) ? (porosity * planimetricArea) : 0;
 
-		return wetArea;
 	}
 
 	/**
@@ -60,21 +51,20 @@ public class PolygonGeometricalWetProperties {
 	 *       multiplication between the wet area and the thickness of the water
 	 *       table
 	 * 
-	 * @param eta
-	 *            the piezometric head
-	 * @param zetaBedrock
-	 *            the bedrock elevation
-	 * @param planimetricArea
-	 *            the planimetric area of the cell
+	 * @param eta The piezometric head
+	 * @param zetaBedrock The bedrock elevation
+	 * @param planimetricArea The planimetric area of the cell
 	 * 
 	 * @return the volume of the stored water in the cell
 	 */
 	public static double computeWaterVolume(double eta, double zetaBedrock,
 			double porosity, double planimetricArea) {
 
-		double volume = computeWetArea(eta, zetaBedrock, porosity, planimetricArea) * (eta - zetaBedrock);
+		double volume = 0;
+		    
 
-		return volume;
+		return volume = computeWetArea(eta, zetaBedrock, porosity, planimetricArea)
+				* (eta - zetaBedrock);
 
 	}
 
